@@ -312,7 +312,7 @@ const TopBar = React.memo(function TopBar() {
               {s === 0 ? <PauseIcon size={14} /> : 
                s === 1 ? <PlayIcon size={14} /> : 
                s === 2 ? <FastForwardIcon size={14} /> :
-               <div className="flex items-center gap-0.5">
+               <div className="flex items-center -space-x-1">
                  <PlayIcon size={10} />
                  <PlayIcon size={10} />
                  <PlayIcon size={10} />

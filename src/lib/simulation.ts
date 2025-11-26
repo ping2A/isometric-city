@@ -458,18 +458,55 @@ function calculateServiceCoverage(grid: Tile[][], size: number): ServiceCoverage
   return services;
 }
 
-// Check if a tile has road access
-function hasRoadAccess(grid: Tile[][], x: number, y: number, size: number): boolean {
+// Check if a tile has road access by looking for a path through the same zone
+// within a limited distance. This allows large contiguous zones to develop even
+// when only the perimeter touches a road.
+function hasRoadAccess(
+  grid: Tile[][],
+  x: number,
+  y: number,
+  size: number,
+  maxDistance: number = 8
+): boolean {
+  const startZone = grid[y][x].zone;
+  if (startZone === 'none') {
+    return false;
+  }
+
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-  for (const [dx, dy] of directions) {
-    const nx = x + dx;
-    const ny = y + dy;
-    if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
-      if (grid[ny][nx].building.type === 'road') {
+  const visited = new Set<string>();
+  const queue: { x: number; y: number; dist: number }[] = [{ x, y, dist: 0 }];
+  visited.add(`${x},${y}`);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current.dist >= maxDistance) {
+      continue;
+    }
+
+    for (const [dx, dy] of directions) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+
+      if (nx < 0 || nx >= size || ny < 0 || ny >= size) continue;
+
+      const key = `${nx},${ny}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      const neighbor = grid[ny][nx];
+
+      if (neighbor.building.type === 'road') {
         return true;
+      }
+
+      const isPassableZone = neighbor.zone === startZone && neighbor.building.type !== 'water';
+      if (isPassableZone) {
+        queue.push({ x: nx, y: ny, dist: current.dist + 1 });
       }
     }
   }
+
   return false;
 }
 
