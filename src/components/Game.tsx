@@ -30,6 +30,7 @@ import {
   BudgetIcon,
   SettingsIcon,
 } from './ui/Icons';
+import { USE_TILE_RENDERER, SPRITE_SHEET, getSpriteCoords } from '@/lib/renderConfig';
 
 // Import shadcn components
 import { Button } from '@/components/ui/button';
@@ -1093,6 +1094,9 @@ const BUILDING_IMAGES: Record<string, string> = {
   shop_medium: '/assets/buildings/shop_medium.png',
   shop_small: '/assets/buildings/shop_small.png',
   warehouse: '/assets/buildings/warehouse.png',
+  factory_small: '/assets/buildings/factory_small.png',
+  factory_medium: '/assets/buildings/factory_medium.png',
+  factory_large: '/assets/buildings/factory_large.png',
 };
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
@@ -1417,9 +1421,17 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
 
   // Load all building images on mount
   useEffect(() => {
-    Promise.all(Object.values(BUILDING_IMAGES).map(src => loadImage(src)))
-      .then(() => setImagesLoaded(true))
-      .catch(console.error);
+    if (USE_TILE_RENDERER) {
+      // Load only the sprite sheet
+      loadImage(SPRITE_SHEET.src)
+        .then(() => setImagesLoaded(true))
+        .catch(console.error);
+    } else {
+      // Load individual building images
+      Promise.all(Object.values(BUILDING_IMAGES).map(src => loadImage(src)))
+        .then(() => setImagesLoaded(true))
+        .catch(console.error);
+    }
   }, []);
   
   // Update canvas size on resize with high-DPI support
@@ -1642,6 +1654,33 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     return false;
   }
   
+  // Helper function to check if a tile is part of a park building footprint
+  function isPartOfParkBuilding(gridX: number, gridY: number): boolean {
+    const maxSize = 4; // Maximum building size
+    const parkBuildings: BuildingType[] = ['park_large'];
+
+    for (let dy = 0; dy < maxSize; dy++) {
+      for (let dx = 0; dx < maxSize; dx++) {
+        const originX = gridX - dx;
+        const originY = gridY - dy;
+
+        if (originX >= 0 && originX < gridSize && originY >= 0 && originY < gridSize) {
+          const originTile = grid[originY][originX];
+
+          // Check if this is a park building and if this tile is within its footprint
+          if (parkBuildings.includes(originTile.building.type)) {
+            const buildingSize = getBuildingSize(originTile.building.type);
+            if (gridX >= originX && gridX < originX + buildingSize.width &&
+                gridY >= originY && gridY < originY + buildingSize.height) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   // Helper function to check if a tile is part of a building that needs parking lot (stadium, hospital, power_plant, industrial, commercial, space_program)
   function isPartOfParkingLotBuilding(gridX: number, gridY: number): boolean {
     const maxSize = 4; // Maximum building size (airport is 4x4)
@@ -1681,7 +1720,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     let rightColor = '#5a8f4f';
     let strokeColor = '#2d4a26';
     
-    const isPark = tile.building.type === 'park' || tile.building.type === 'park_large' || tile.building.type === 'tennis';
+    const isPark = tile.building.type === 'park' || tile.building.type === 'park_large' || tile.building.type === 'tennis' ||
+                   (tile.building.type === 'empty' && isPartOfParkBuilding(tile.x, tile.y));
     // Check if this is a building (not grass, empty, water, road, tree, park, or tennis)
     // Also check if it's part of a multi-tile building footprint
     const isDirectBuilding = !isPark &&
@@ -2022,33 +2062,44 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       drawPosY = y + screenOffsetY;
     }
     
-    // Map building types to images
+    // Map building types to sprite keys (for tile renderer) and image sources
+    let spriteKey: string | null = null;
     let imageSrc: string | null = null;
     let sizeMultiplier = 1.8; // Default size for buildings
     
     if (buildingType === 'house_medium') {
+      spriteKey = 'house_medium';
       imageSrc = BUILDING_IMAGES.house_medium;
       sizeMultiplier = 1.26; // Scaled down 30% from 1.8
     } else if (buildingType === 'house_small') {
+      spriteKey = 'house_small';
       imageSrc = BUILDING_IMAGES.house_small;
       sizeMultiplier = 1.26; // Scaled down 30% from 1.8
     } else if (['apartment_low', 'apartment_high'].includes(buildingType)) {
+      spriteKey = 'residential';
       imageSrc = BUILDING_IMAGES.residential;
     } else if (buildingType === 'mansion') {
+      spriteKey = 'mansion';
       imageSrc = BUILDING_IMAGES.mansion;
     } else if (buildingType === 'shop_medium') {
+      spriteKey = 'shop_medium';
       imageSrc = BUILDING_IMAGES.shop_medium;
       sizeMultiplier = 1.44; // Scaled down 20% from 1.8
     } else if (buildingType === 'shop_small') {
+      spriteKey = 'shop_small';
       imageSrc = BUILDING_IMAGES.shop_small;
       sizeMultiplier = 1.26; // Scaled down 30% from 1.8
     } else if (['office_low', 'office_high', 'mall'].includes(buildingType)) {
+      spriteKey = 'commercial';
       imageSrc = BUILDING_IMAGES.commercial;
     } else if (buildingType === 'warehouse') {
+      spriteKey = 'warehouse';
       imageSrc = BUILDING_IMAGES.warehouse;
     } else if (['factory_small', 'factory_medium', 'factory_large'].includes(buildingType)) {
+      spriteKey = 'industrial';
       imageSrc = BUILDING_IMAGES.industrial;
     } else if (BUILDING_IMAGES[buildingType]) {
+      spriteKey = buildingType;
       imageSrc = BUILDING_IMAGES[buildingType];
       // Larger buildings need bigger sprites
       if (buildingType === 'power_plant') sizeMultiplier = 2.25; // Scaled down 10% from 2.5
@@ -2064,36 +2115,58 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       else if (buildingType === 'tennis') sizeMultiplier = 1.197; // Scaled down 5% from 1.26
     }
     
-    if (imageSrc && imageCache.has(imageSrc)) {
-      const img = imageCache.get(imageSrc)!;
-      const imgHeight = w * sizeMultiplier;
-      const aspectRatio = img.width / img.height || 1;
-      const imgWidth = imgHeight * aspectRatio;
+    // Calculate destination dimensions and position
+    const imgHeight = w * sizeMultiplier;
+    // For tile renderer, sprites are square; for individual images, use aspect ratio
+    const imgWidth = USE_TILE_RENDERER ? imgHeight : (imageSrc && imageCache.has(imageSrc) ? imgHeight * (imageCache.get(imageSrc)!.width / imageCache.get(imageSrc)!.height) : imgHeight);
+    
+    // Calculate position to center building on tile
+    // For multi-tile buildings, position relative to frontmost tile so all tiles appear below
+    const drawX = drawPosX + w / 2 - imgWidth / 2;
+    // For multi-tile buildings, draw higher (lower Y) so it appears above all tiles
+    // The frontmost tile is drawn last, so we position relative to it
+    const baseY = isMultiTile ? drawPosY : y;
+    const footprintDepth = isMultiTile ? buildingSize.width + buildingSize.height - 2 : 0;
+    const verticalLift = footprintDepth > 0 ? footprintDepth * h * 0.3 : 0;
+    let drawY = baseY - imgHeight + h + imgHeight * 0.1 - verticalLift;
+    if (buildingType === 'power_plant') {
+      drawY += h * 0.35; // Lower the sprite slightly to sit closer to the ground
+    }
+    if (buildingType === 'school') {
+      drawY += h * 0.4; // Shift school downward
+    }
+    if (buildingType === 'stadium') {
+      drawY += h * 1.0; // Shift stadium down more
+    }
+    if (buildingType === 'space_program') {
+      drawY += h * 1.0; // Shift space program down more, same as stadium
+    }
+    if (buildingType === 'park_large') {
+      drawY += h * 1.1; // Shift large park down
+    }
+    if (buildingType === 'water_tower') {
+      drawY -= h * 0.1; // Shift water tower upward slightly
+    }
+    
+    if (USE_TILE_RENDERER && spriteKey) {
+      // Use sprite sheet rendering
+      const spriteSheet = imageCache.get(SPRITE_SHEET.src);
+      const coords = getSpriteCoords(spriteKey);
       
-      // Calculate position to center building on tile
-      // For multi-tile buildings, position relative to frontmost tile so all tiles appear below
-      const drawX = drawPosX + w / 2 - imgWidth / 2;
-      // For multi-tile buildings, draw higher (lower Y) so it appears above all tiles
-      // The frontmost tile is drawn last, so we position relative to it
-      const baseY = isMultiTile ? drawPosY : y;
-      const footprintDepth = isMultiTile ? buildingSize.width + buildingSize.height - 2 : 0;
-      const verticalLift = footprintDepth > 0 ? footprintDepth * h * 0.3 : 0;
-      let drawY = baseY - imgHeight + h + imgHeight * 0.1 - verticalLift;
-      if (buildingType === 'power_plant') {
-        drawY += h * 0.35; // Lower the sprite slightly to sit closer to the ground
+      if (spriteSheet && coords) {
+        // Draw from sprite sheet using source coordinates
+        ctx.drawImage(
+          spriteSheet,
+          coords.sx, coords.sy, coords.sw, coords.sh, // Source rectangle
+          Math.round(drawX),
+          Math.round(drawY),
+          Math.round(imgWidth),
+          Math.round(imgHeight) // Destination rectangle
+        );
       }
-      if (buildingType === 'school') {
-        drawY += h * 0.4; // Shift school downward
-      }
-      if (buildingType === 'stadium') {
-        drawY += h * 1.0; // Shift stadium down more
-      }
-      if (buildingType === 'space_program') {
-        drawY += h * 1.0; // Shift space program down more, same as stadium
-      }
-      if (buildingType === 'water_tower') {
-        drawY -= h * 0.1; // Shift water tower upward slightly
-      }
+    } else if (imageSrc && imageCache.has(imageSrc)) {
+      // Use individual image rendering
+      const img = imageCache.get(imageSrc)!;
       
       // Draw with crisp rendering
       ctx.drawImage(

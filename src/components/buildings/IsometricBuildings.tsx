@@ -19,6 +19,7 @@ const SPRITE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   '/assets/buildings/fire_station.png': { width: 1616, height: 1536 },
   '/assets/buildings/hospital.png': { width: 1648, height: 1748 },
   '/assets/buildings/park.png': { width: 2048, height: 2048 },
+  '/assets/buildings/park_medium.png': { width: 2048, height: 2048 },
   '/assets/buildings/tennis.png': { width: 1024, height: 1024 },
   '/assets/buildings/police_station.png': { width: 2048, height: 2048 },
   '/assets/buildings/school.png': { width: 2048, height: 2048 },
@@ -38,16 +39,16 @@ const SPRITE_DIMENSIONS: Record<string, { width: number; height: number }> = {
 };
 
 // Mapping of building types to their PNG image paths and size multipliers
-const BUILDING_IMAGES: Partial<Record<BuildingType, { src: string; tileWidth: number; tileHeight: number; scale?: number; verticalOffset?: number }>> = {
+const BUILDING_IMAGES: Partial<Record<BuildingType, { src: string; tileWidth: number; tileHeight: number; scale?: number; verticalOffset?: number; baseTileColor?: string }>> = {
   // Residential buildings (1x1)
-  house_small: { src: '/assets/buildings/house_small.png', tileWidth: 1, tileHeight: 1, scale: 0.8, verticalOffset: 12 },
-  house_medium: { src: '/assets/buildings/house_medium.png', tileWidth: 1, tileHeight: 1, scale: 0.8, verticalOffset: 12 },
-  apartment_low: { src: '/assets/buildings/residential.png', tileWidth: 1, tileHeight: 1, verticalOffset: 14 },
-  apartment_high: { src: '/assets/buildings/residential.png', tileWidth: 1, tileHeight: 1, verticalOffset: 18 },
-  mansion: { src: '/assets/buildings/mansion.png', tileWidth: 1, tileHeight: 1, verticalOffset: -25 },
+  house_small: { src: '/assets/buildings/house_small.png', tileWidth: 1, tileHeight: 1, scale: 0.8, verticalOffset: 12, baseTileColor: '#8a8a8a' },
+  house_medium: { src: '/assets/buildings/house_medium.png', tileWidth: 1, tileHeight: 1, scale: 0.8, verticalOffset: 12, baseTileColor: '#8a8a8a' },
+  apartment_low: { src: '/assets/buildings/residential.png', tileWidth: 1, tileHeight: 1, verticalOffset: 14, baseTileColor: '#8a8a8a' },
+  apartment_high: { src: '/assets/buildings/residential.png', tileWidth: 1, tileHeight: 1, verticalOffset: 18, baseTileColor: '#8a8a8a' },
+  mansion: { src: '/assets/buildings/mansion.png', tileWidth: 1, tileHeight: 1, verticalOffset: -55, baseTileColor: '#8a8a8a' },
   // Commercial buildings (1x1)
   shop_small: { src: '/assets/buildings/shop_small.png', tileWidth: 1, tileHeight: 1, scale: 0.7 },
-  shop_medium: { src: '/assets/buildings/shop_medium.png', tileWidth: 1, tileHeight: 1, scale: 0.8 },
+  shop_medium: { src: '/assets/buildings/shop_medium.png', tileWidth: 1, tileHeight: 1, scale: 0.74 },
   office_low: { src: '/assets/buildings/commercial.png', tileWidth: 1, tileHeight: 1 },
   office_high: { src: '/assets/buildings/commercial.png', tileWidth: 1, tileHeight: 1 },
   mall: { src: '/assets/buildings/commercial.png', tileWidth: 1, tileHeight: 1 },
@@ -59,8 +60,8 @@ const BUILDING_IMAGES: Partial<Record<BuildingType, { src: string; tileWidth: nu
   // Service buildings (1x1)
   fire_station: { src: '/assets/buildings/fire_station.png', tileWidth: 1, tileHeight: 1 },
   hospital: { src: '/assets/buildings/hospital.png', tileWidth: 1, tileHeight: 1, scale: 0.56, verticalOffset: 15 },
-  park: { src: '/assets/buildings/park.png', tileWidth: 1, tileHeight: 1 },
-  park_large: { src: '/assets/buildings/park_medium.png', tileWidth: 3, tileHeight: 3, scale: 1.3, verticalOffset: -80 },
+  park: { src: '/assets/buildings/park.png', tileWidth: 1, tileHeight: 1, verticalOffset: -35 },
+  park_large: { src: '/assets/buildings/park_medium.png', tileWidth: 3, tileHeight: 3, scale: 1.3, verticalOffset: -180 },
   tennis: { src: '/assets/buildings/tennis.png', tileWidth: 1, tileHeight: 1, scale: 0.95 },
   police_station: { src: '/assets/buildings/police_station.png', tileWidth: 1, tileHeight: 1 },
   school: { src: '/assets/buildings/school.png', tileWidth: 2, tileHeight: 2 },
@@ -82,7 +83,8 @@ const ImageBuilding: React.FC<{
   alt: string;
   scale?: number; // Optional scale multiplier (default 1.0)
   verticalOffset?: number; // Optional vertical offset in pixels (positive = up, negative = down)
-}> = ({ src, size = 64, tileWidth = 1, tileHeight = 1, alt, scale = 1.0, verticalOffset = 0 }) => {
+  baseTileColor?: string; // Optional color for the base tile underneath
+}> = ({ src, size = 64, tileWidth = 1, tileHeight = 1, alt, scale = 1.0, verticalOffset = 0, baseTileColor }) => {
   // Calculate image dimensions based on tile size
   // For multi-tile buildings, scale the image accordingly
   const scaledWidth = size * tileWidth;
@@ -104,6 +106,26 @@ const ImageBuilding: React.FC<{
         justifyContent: 'center',
       }}
     >
+      {/* Base tile underneath the building */}
+      {baseTileColor && (
+        <svg 
+          width={scaledWidth} 
+          height={scaledHeight} 
+          viewBox={`0 0 ${scaledWidth} ${scaledHeight}`} 
+          style={{ 
+            position: 'absolute', 
+            bottom: 0, 
+            left: 0,
+          }}
+        >
+          <polygon
+            points={`${scaledWidth/2},0 ${scaledWidth},${scaledHeight/2} ${scaledWidth/2},${scaledHeight} 0,${scaledHeight/2}`}
+            fill={baseTileColor}
+            stroke="rgba(0,0,0,0.3)"
+            strokeWidth={0.5}
+          />
+        </svg>
+      )}
       <Image
         src={src}
         alt={alt}
@@ -1030,7 +1052,7 @@ export const BuildingRenderer: React.FC<{
     // Check if we have a PNG image for this building type
     const imageConfig = BUILDING_IMAGES[buildingType];
     if (imageConfig) {
-      return <ImageBuilding src={imageConfig.src} size={size} tileWidth={imageConfig.tileWidth} tileHeight={imageConfig.tileHeight} alt={buildingType} scale={imageConfig.scale} verticalOffset={imageConfig.verticalOffset} />;
+      return <ImageBuilding src={imageConfig.src} size={size} tileWidth={imageConfig.tileWidth} tileHeight={imageConfig.tileHeight} alt={buildingType} scale={imageConfig.scale} verticalOffset={imageConfig.verticalOffset} baseTileColor={imageConfig.baseTileColor} />;
     }
     
     // Fallback to SVG-based buildings for types without images
